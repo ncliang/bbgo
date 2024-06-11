@@ -1,0 +1,48 @@
+---
+sessions:
+   binance:
+     exchange: binance
+     envVarPrefix: binance
+
+#riskControls:
+#  # This is the session-based risk controller, which let you configure different risk controller by session.
+#  sessionBased:
+#    # "max" is the session name that you want to configure the risk control
+#    binance:
+#      # orderExecutor is one of the risk control
+#      orderExecutor:
+#        # symbol-routed order executor
+#        bySymbol:
+#          BTCUSDT:
+#            # basic risk control order executor
+#            basic:
+#              minQuoteBalance: 1000.0
+#              maxBaseAssetBalance: 0
+#              minBaseAssetBalance: 1.0
+#              maxOrderAmount: 3000.0
+
+backtest:
+  # for testing max draw down (MDD) at 03-12
+  # see here for more details
+  # https://www.investopedia.com/terms/m/maximum-drawdown-mdd.asp
+  startTime: "2024-06-04"
+  endTime: "2024-06-10"
+  sessions:
+    - binance
+  symbols:
+    - ETHBTC
+  account:
+    binance:
+      makerFeeRate: 0.075%
+      takerFeeRate: 0.075%
+      balances:
+        ETH: 0.3665
+        BTC: 0.002
+
+exchangeStrategies:
+- on: binance
+  bollupdown:
+    symbol: ETHBTC
+    interval: 1m
+    quantity: 0.002
+    profitSpread: 0.0002

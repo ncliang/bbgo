@@ -8,6 +8,7 @@ import (
 	_ "github.com/c9s/bbgo/pkg/strategy/autobuy"
 	_ "github.com/c9s/bbgo/pkg/strategy/bollgrid"
 	_ "github.com/c9s/bbgo/pkg/strategy/bollmaker"
+	_ "github.com/c9s/bbgo/pkg/strategy/bollupdown"
 	_ "github.com/c9s/bbgo/pkg/strategy/convert"
 	_ "github.com/c9s/bbgo/pkg/strategy/dca"
 	_ "github.com/c9s/bbgo/pkg/strategy/deposit2transfer"
