@@ -25,7 +25,7 @@ backtest:
   # for testing max draw down (MDD) at 03-12
   # see here for more details
   # https://www.investopedia.com/terms/m/maximum-drawdown-mdd.asp
-  startTime: "2024-06-04"
+  startTime: "2024-01-01"
   endTime: "2024-06-10"
   sessions:
     - binance
@@ -36,8 +36,8 @@ backtest:
       makerFeeRate: 0.075%
       takerFeeRate: 0.075%
       balances:
-        ETH: 0.3665
-        BTC: 0.002
+        ETH: 4.0
+        BTC: 0.0
 
 exchangeStrategies:
 - on: binance

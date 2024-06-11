@@ -71,8 +71,9 @@ type Strategy struct {
 
 	orders *core.OrderStore
 
-	// boll is the BOLLINGER indicator we used for predicting the price.
-	boll *indicator.BOLL
+	// innerBoll and outerBoll are the boundaries to set buy and sell orders
+	innerBoll *indicator.BOLL
+	outerBoll *indicator.BOLL
 
 	CancelProfitOrdersOnShutdown bool `json: "shutdownCancelProfitOrders"`
 }
@@ -113,7 +114,7 @@ func (s *Strategy) generateGridBuyOrders(session *bbgo.ExchangeSession) ([]types
 		return nil, fmt.Errorf("quote balance %s is zero: %v", s.Market.QuoteCurrency, quoteBalance)
 	}
 
-	upBand, downBand := s.boll.LastUpBand(), s.boll.LastDownBand()
+	upBand, downBand := s.innerBoll.LastDownBand(), s.outerBoll.LastDownBand()
 	if upBand <= 0.0 {
 		return nil, fmt.Errorf("up band == 0")
 	}
@@ -121,13 +122,36 @@ func (s *Strategy) generateGridBuyOrders(session *bbgo.ExchangeSession) ([]types
 		return nil, fmt.Errorf("down band == 0")
 	}
 
+	var downBandOrders []types.SubmitOrder
+	var upBandOrders []types.SubmitOrder
+	var err error
+	if downBandOrders, err = s.generateBuyOrdersBetweenBand(session, upBand, downBand, quoteBalance); err != nil {
+		log.WithError(err).Errorf("Downband buy order error")
+	}
+
+	upBand, downBand = s.outerBoll.LastUpBand(), s.innerBoll.LastUpBand()
+	if upBand <= 0.0 {
+		return nil, fmt.Errorf("up band == 0")
+	}
+	if downBand <= 0.0 {
+		return nil, fmt.Errorf("down band == 0")
+	}
+	if upBandOrders, err = s.generateBuyOrdersBetweenBand(session, upBand, downBand, quoteBalance); err != nil {
+		log.WithError(err).Errorf("Upband buy order error")
+	}
+
+	return append(downBandOrders, upBandOrders...), nil
+}
+
+func (s *Strategy) generateBuyOrdersBetweenBand(session *bbgo.ExchangeSession, upBand float64, downBand float64, quoteBalance fixedpoint.Value) ([]types.SubmitOrder, error) {
 	currentPrice, ok := session.LastPrice(s.Symbol)
 	if !ok {
 		return nil, fmt.Errorf("last price not found")
 	}
 
 	if currentPrice.Float64() > upBand || currentPrice.Float64() < downBand {
-		return nil, fmt.Errorf("current price %v exceed the bollinger band %f <> %f", currentPrice, upBand, downBand)
+		log.Infof("current price out of band, skip buy")
+		return nil, nil
 	}
 
 	ema99 := s.StandardIndicatorSet.EWMA(types.IntervalWindow{Interval: s.Interval, Window: 99})
@@ -176,7 +200,7 @@ func (s *Strategy) generateGridSellOrders(session *bbgo.ExchangeSession) ([]type
 		return nil, fmt.Errorf("base balance %s is zero: %+v", s.Market.BaseCurrency, baseBalance)
 	}
 
-	upBand, downBand := s.boll.LastUpBand(), s.boll.LastDownBand()
+	upBand, downBand := s.innerBoll.LastDownBand(), s.outerBoll.LastDownBand()
 
 	if upBand <= 0.0 {
 		return nil, fmt.Errorf("up band == 0")
@@ -185,6 +209,29 @@ func (s *Strategy) generateGridSellOrders(session *bbgo.ExchangeSession) ([]type
 		return nil, fmt.Errorf("down band == 0")
 	}
 
+	//return s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance)
+	var downBandOrders []types.SubmitOrder
+	var upBandOrders []types.SubmitOrder
+	var err error
+	if downBandOrders, err = s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance); err != nil {
+		log.WithError(err).Errorf("Downband sell order error")
+	}
+
+	upBand, downBand = s.outerBoll.LastUpBand(), s.innerBoll.LastUpBand()
+	if upBand <= 0.0 {
+		return nil, fmt.Errorf("up band == 0")
+	}
+	if downBand <= 0.0 {
+		return nil, fmt.Errorf("down band == 0")
+	}
+	if upBandOrders, err = s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance); err != nil {
+		log.WithError(err).Errorf("Upband sell order error")
+	}
+
+	return append(downBandOrders, upBandOrders...), nil
+}
+
+func (s *Strategy) generateSellOrdersBetweenBand(session *bbgo.ExchangeSession, upBand float64, downBand float64, baseBalance fixedpoint.Value) ([]types.SubmitOrder, error) {
 	currentPrice, ok := session.LastPrice(s.Symbol)
 	if !ok {
 		return nil, fmt.Errorf("last price not found")
@@ -193,7 +240,8 @@ func (s *Strategy) generateGridSellOrders(session *bbgo.ExchangeSession) ([]type
 	currentPricef := currentPrice.Float64()
 
 	if currentPricef > upBand || currentPricef < downBand {
-		return nil, fmt.Errorf("current price exceed the bollinger band")
+		log.Infof("current price out of band, skip sell")
+		return nil, nil
 	}
 
 	ema99 := s.StandardIndicatorSet.EWMA(types.IntervalWindow{Interval: s.Interval, Window: 99})
@@ -266,8 +314,8 @@ func (s *Strategy) updateOrders(orderExecutor bbgo.OrderExecutor, session *bbgo.
 	}
 
 	// skip order updates if up-band - down-band < min profit spread
-	if (s.boll.LastUpBand() - s.boll.LastDownBand()) <= s.ProfitSpread.Float64() {
-		log.Infof("boll: down band price == up band price, skipping...")
+	if (s.innerBoll.LastUpBand() - s.innerBoll.LastDownBand()) <= s.ProfitSpread.Float64() {
+		log.Infof("innerBoll: down band price == up band price, skipping...")
 		return
 	}
 
@@ -317,7 +365,11 @@ func (s *Strategy) submitReverseOrder(order types.Order, session *bbgo.ExchangeS
 }
 
 func (s *Strategy) Run(ctx context.Context, orderExecutor bbgo.OrderExecutor, session *bbgo.ExchangeSession) error {
-	s.boll = s.StandardIndicatorSet.BOLL(types.IntervalWindow{
+	s.innerBoll = s.StandardIndicatorSet.BOLL(types.IntervalWindow{
+		Interval: s.Interval,
+		Window:   21,
+	}, 1.0)
+	s.outerBoll = s.StandardIndicatorSet.BOLL(types.IntervalWindow{
 		Interval: s.Interval,
 		Window:   21,
 	}, 3.0)
