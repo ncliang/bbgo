@@ -122,25 +122,7 @@ func (s *Strategy) generateGridBuyOrders(session *bbgo.ExchangeSession) ([]types
 		return nil, fmt.Errorf("down band == 0")
 	}
 
-	var downBandOrders []types.SubmitOrder
-	var upBandOrders []types.SubmitOrder
-	var err error
-	if downBandOrders, err = s.generateBuyOrdersBetweenBand(session, upBand, downBand, quoteBalance); err != nil {
-		log.WithError(err).Errorf("Downband buy order error")
-	}
-
-	upBand, downBand = s.outerBoll.LastUpBand(), s.innerBoll.LastUpBand()
-	if upBand <= 0.0 {
-		return nil, fmt.Errorf("up band == 0")
-	}
-	if downBand <= 0.0 {
-		return nil, fmt.Errorf("down band == 0")
-	}
-	if upBandOrders, err = s.generateBuyOrdersBetweenBand(session, upBand, downBand, quoteBalance); err != nil {
-		log.WithError(err).Errorf("Upband buy order error")
-	}
-
-	return append(downBandOrders, upBandOrders...), nil
+	return s.generateBuyOrdersBetweenBand(session, upBand, downBand, quoteBalance)
 }
 
 func (s *Strategy) generateBuyOrdersBetweenBand(session *bbgo.ExchangeSession, upBand float64, downBand float64, quoteBalance fixedpoint.Value) ([]types.SubmitOrder, error) {
@@ -209,26 +191,7 @@ func (s *Strategy) generateGridSellOrders(session *bbgo.ExchangeSession) ([]type
 		return nil, fmt.Errorf("down band == 0")
 	}
 
-	//return s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance)
-	var downBandOrders []types.SubmitOrder
-	var upBandOrders []types.SubmitOrder
-	var err error
-	if downBandOrders, err = s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance); err != nil {
-		log.WithError(err).Errorf("Downband sell order error")
-	}
-
-	upBand, downBand = s.outerBoll.LastUpBand(), s.innerBoll.LastUpBand()
-	if upBand <= 0.0 {
-		return nil, fmt.Errorf("up band == 0")
-	}
-	if downBand <= 0.0 {
-		return nil, fmt.Errorf("down band == 0")
-	}
-	if upBandOrders, err = s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance); err != nil {
-		log.WithError(err).Errorf("Upband sell order error")
-	}
-
-	return append(downBandOrders, upBandOrders...), nil
+	return s.generateSellOrdersBetweenBand(session, upBand, downBand, baseBalance)
 }
 
 func (s *Strategy) generateSellOrdersBetweenBand(session *bbgo.ExchangeSession, upBand float64, downBand float64, baseBalance fixedpoint.Value) ([]types.SubmitOrder, error) {
