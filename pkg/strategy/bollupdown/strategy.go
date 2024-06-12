@@ -55,10 +55,6 @@ type Strategy struct {
 	// RepostInterval is the interval for re-posting maker orders
 	RepostInterval types.Interval `json:"repostInterval"`
 
-	// GridPips is the pips of grid
-	// e.g., 0.001, so that your orders will be submitted at price like 0.127, 0.128, 0.129, 0.130
-	GridPips fixedpoint.Value `json:"gridPips"`
-
 	ProfitSpread fixedpoint.Value `json:"profitSpread"`
 
 	// Quantity is the quantity you want to submit for each order.
@@ -75,7 +71,10 @@ type Strategy struct {
 	innerBoll *indicator.BOLL
 	outerBoll *indicator.BOLL
 
-	CancelProfitOrdersOnShutdown bool `json: "shutdownCancelProfitOrders"`
+	InnerBollWidth fixedpoint.Value `json:"innerBollWidth"`
+	OuterBollWidth fixedpoint.Value `json:"outerBollWidth"`
+
+	CancelProfitOrdersOnShutdown bool `json:"shutdownCancelProfitOrders"`
 }
 
 func (s *Strategy) ID() string {
@@ -91,12 +90,15 @@ func (s *Strategy) Validate() error {
 		// If quantity is empty or its value is negative
 		return fmt.Errorf("quantity should bigger than 0")
 	}
+	if s.InnerBollWidth <= 0 || s.OuterBollWidth <= 0 || s.OuterBollWidth <= s.InnerBollWidth {
+		return fmt.Errorf("both inner and outer bollinger width must be set. Inner width must be less than outer width")
+	}
 	return nil
 }
 
 func (s *Strategy) Subscribe(session *bbgo.ExchangeSession) {
 	if s.Interval == "" {
-		panic("bollgrid interval can not be empty")
+		panic("interval can not be empty")
 	}
 
 	// currently we need the 1m kline to update the last close price and indicators
@@ -331,11 +333,11 @@ func (s *Strategy) Run(ctx context.Context, orderExecutor bbgo.OrderExecutor, se
 	s.innerBoll = s.StandardIndicatorSet.BOLL(types.IntervalWindow{
 		Interval: s.Interval,
 		Window:   21,
-	}, 1.0)
+	}, s.InnerBollWidth.Float64())
 	s.outerBoll = s.StandardIndicatorSet.BOLL(types.IntervalWindow{
 		Interval: s.Interval,
 		Window:   21,
-	}, 3.0)
+	}, s.OuterBollWidth.Float64())
 
 	s.orders = core.NewOrderStore(s.Symbol)
 	s.orders.BindStream(session.UserDataStream)

@@ -46,3 +46,5 @@ exchangeStrategies:
     interval: 1m
     quantity: 0.002
     profitSpread: 0.0002
+    innerBollWidth: 1.0
+    outerBollWidth: 3.0
